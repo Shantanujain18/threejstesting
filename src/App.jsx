@@ -1,79 +1,85 @@
+// App.jsx
+import React, { useRef, useEffect, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF } from "@react-three/drei";
-import { useRef, useMemo } from "react";
 import * as THREE from "three";
 
-// Component for multiple moving Soldier models
-function Soldiers({ url = "/models/Soldier.glb", count = 5, speed = 0.02 }) {
-  const { scene } = useGLTF(url);
+function Soldier({ url, action, visible }) {
   const group = useRef();
+  const { scene, animations } = useGLTF(url);
+  const mixerRef = useRef();
+  const [actionsMap, setActionsMap] = useState({});
 
-  // Initialize positions, directions, and colors
-  const soldiers = useMemo(() => {
-    const arr = [];
-    for (let i = 0; i < count; i++) {
-      arr.push({
-        position: new THREE.Vector3(
-          (Math.random() - 0.5) * 10,
-          0,
-          (Math.random() - 0.5) * 10
-        ),
-        direction: new THREE.Vector3(
-          (Math.random() - 0.5) * speed,
-          0,
-          (Math.random() - 0.5) * speed
-        ),
-        color: new THREE.Color(Math.random(), Math.random(), Math.random())
-      });
+  useEffect(() => {
+    if (!scene || !animations || !group.current) return;
+
+    // Initialize mixer
+    const mixer = new THREE.AnimationMixer(scene);
+    mixerRef.current = mixer;
+
+    // Find animations by name
+    const idleAnim = animations.find(a => a.name.toLowerCase().includes("idle"));
+    const walkAnim = animations.find(a => a.name.toLowerCase().includes("walk"));
+    const runAnim  = animations.find(a => a.name.toLowerCase().includes("run"));
+
+    if (!idleAnim || !walkAnim || !runAnim) {
+      console.warn("Animations missing:", animations.map(a => a.name));
+      return;
     }
-    return arr;
-  }, [count, speed]);
 
-  // Animate each soldier
-  useFrame(() => {
-    soldiers.forEach((s, i) => {
-      s.position.add(s.direction);
-      const mesh = group.current.children[i];
-      mesh.position.copy(s.position);
-    });
+    const idleAction = mixer.clipAction(idleAnim);
+    const walkAction = mixer.clipAction(walkAnim);
+    const runAction  = mixer.clipAction(runAnim);
+
+    // Play all actions, but only idle visible initially
+    idleAction.play();
+    walkAction.play(); walkAction.setEffectiveWeight(0);
+    runAction.play();  runAction.setEffectiveWeight(0);
+
+    setActionsMap({ idle: idleAction, walk: walkAction, run: runAction });
+  }, [scene, animations]);
+
+  // Switch animation on action change
+  useEffect(() => {
+    if (!actionsMap[action]) return;
+
+    Object.values(actionsMap).forEach(a => a.setEffectiveWeight(0));
+    actionsMap[action].setEffectiveWeight(1);
+  }, [action, actionsMap]);
+
+  // Animate mixer and move soldier
+  useFrame((state, delta) => {
+    if (mixerRef.current) mixerRef.current.update(delta);
+    if (group.current) {
+      group.current.position.x -= 0.02;
+      if (group.current.position.x < -10) group.current.position.x = 10;
+    }
   });
 
-  // Change one soldier’s color after 2 seconds
-  useFrame(({ clock }) => {
-    if (clock.elapsedTime > 2) {
-      soldiers[0].color.set("red");
-      group.current.children[0].traverse((child) => {
-        if (child.isMesh) {
-          child.material.color = soldiers[0].color;
-        }
-      });
-    }
-  });
-
-  return (
-    <group ref={group}>
-      {soldiers.map((s, i) => (
-        <primitive
-          key={i}
-          object={scene.clone()}
-          position={s.position}
-          scale={0.02}
-        >
-          {/* Apply initial color */}
-          <meshStandardMaterial attach="material" color={s.color} />
-        </primitive>
-      ))}
-    </group>
-  );
+  return <group ref={group} visible={visible}><primitive object={scene} /></group>;
 }
 
 export default function App() {
+  const [action, setAction] = useState("idle");
+  const [visible, setVisible] = useState(true);
+
   return (
-    <Canvas camera={{ position: [0, 5, 10], fov: 50 }}>
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 5]} intensity={1} />
-      <Soldiers url="/models/Soldier.glb" count={5} speed={0.05} />
-      <OrbitControls />
-    </Canvas>
+    <>
+      <Canvas camera={{ position: [0, 2, 5], fov: 50 }}>
+        <ambientLight intensity={0.6} />
+        <directionalLight position={[10, 10, 10]} intensity={1} />
+        <Soldier url="/models/Soldier.glb" action={action} visible={visible} />
+        <OrbitControls />
+      </Canvas>
+
+      <div style={{ position: "absolute", top: 20, left: 20, zIndex: 1 }}>
+        <button onClick={() => setVisible(!visible)}>
+          {visible ? "Hide" : "Show"} Model
+        </button>
+        <button onClick={() => setAction("idle")}>Idle</button>
+        <button onClick={() => setAction("walk")}>Walk</button>
+        <button onClick={() => setAction("run")}>Run</button>
+      </div>
+    </>
   );
 }
