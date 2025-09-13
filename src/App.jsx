@@ -13,6 +13,9 @@ function Soldier({ url, action, visible }) {
   useEffect(() => {
     if (!scene || !animations || !group.current) return;
 
+    // Scale model up to fit screen nicely
+    scene.scale.set(2, 2, 2);
+
     // Initialize mixer
     const mixer = new THREE.AnimationMixer(scene);
     mixerRef.current = mixer;
@@ -49,9 +52,9 @@ function Soldier({ url, action, visible }) {
   useFrame((state, delta) => {
     if (mixerRef.current) mixerRef.current.update(delta);
     if (group.current) {
-      // Keep soldier centered on screen (optional subtle movement)
-      // group.current.position.x = 0;
       group.current.position.y = 0; // on ground
+      group.current.position.x = 0; // center
+      group.current.position.z = 0; // center
     }
   });
 
@@ -64,9 +67,9 @@ export default function App() {
 
   return (
     <>
-      <Canvas shadows camera={{ position: [0, 2, 5], fov: 50 }}>
+      <Canvas shadows camera={{ position: [0, 3, 8], fov: 100 }}>
         {/* Lights */}
-        <ambientLight intensity={0.5} />
+        <ambientLight intensity={0.6} />
         <directionalLight 
           position={[5, 10, 5]} 
           intensity={1} 
@@ -88,7 +91,7 @@ export default function App() {
       </Canvas>
 
       {/* Buttons */}
-      <div style={{ position: "absolute", top: 20, left: 20, zIndex: 1 }}>
+      <div style={{ position: "absolute", top: 100, left: 20, zIndex: 1 }}>
         <button onClick={() => setVisible(!visible)}>
           {visible ? "Hide" : "Show"} Model
         </button>
