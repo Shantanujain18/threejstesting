@@ -1,97 +1,78 @@
-import React, { useRef, useState, useEffect } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
+import { OrbitControls, useGLTF } from "@react-three/drei";
+import { useRef, useMemo } from "react";
 import * as THREE from "three";
-import { OrbitControls } from "@react-three/drei";
 
-// Instanced cubes component
-function InstancedCubes({ count = 50, speed = 0.01 }) {
-  const meshRef = useRef();
-  const [colors] = useState(() => new Float32Array(count * 3));
-  const [velocities] = useState(() => []);
+// Component for multiple moving Soldier models
+function Soldiers({ url = "/models/Soldier.glb", count = 5, speed = 0.02 }) {
+  const { scene } = useGLTF(url);
+  const group = useRef();
 
-  // Initialize positions and velocities
-  useEffect(() => {
-    const dummy = new THREE.Object3D();
-
+  // Initialize positions, directions, and colors
+  const soldiers = useMemo(() => {
+    const arr = [];
     for (let i = 0; i < count; i++) {
-      // Random start position
-      dummy.position.set(
-        (Math.random() - 0.5) * 10,
-        (Math.random() - 0.5) * 10,
-        (Math.random() - 0.5) * 10
-      );
-      dummy.updateMatrix();
-      meshRef.current.setMatrixAt(i, dummy.matrix);
-
-      // Random velocity
-      velocities.push(
-        new THREE.Vector3(
+      arr.push({
+        position: new THREE.Vector3(
+          (Math.random() - 0.5) * 10,
+          0,
+          (Math.random() - 0.5) * 10
+        ),
+        direction: new THREE.Vector3(
           (Math.random() - 0.5) * speed,
-          (Math.random() - 0.5) * speed,
+          0,
           (Math.random() - 0.5) * speed
-        )
-      );
-
-      // Default color white
-      colors[i * 3 + 0] = 1;
-      colors[i * 3 + 1] = 1;
-      colors[i * 3 + 2] = 1;
+        ),
+        color: new THREE.Color(Math.random(), Math.random(), Math.random())
+      });
     }
+    return arr;
+  }, [count, speed]);
 
-    meshRef.current.instanceMatrix.needsUpdate = true;
-    meshRef.current.geometry.setAttribute(
-      "color",
-      new THREE.InstancedBufferAttribute(colors, 3)
-    );
-  }, [count, speed, colors, velocities]);
-
-  // Animate movement
+  // Animate each soldier
   useFrame(() => {
-    const dummy = new THREE.Object3D();
-
-    for (let i = 0; i < count; i++) {
-      meshRef.current.getMatrixAt(i, dummy.matrix);
-      dummy.position.setFromMatrixPosition(dummy.matrix);
-
-      // Move
-      dummy.position.add(velocities[i]);
-
-      dummy.updateMatrix();
-      meshRef.current.setMatrixAt(i, dummy.matrix);
-    }
-
-    meshRef.current.instanceMatrix.needsUpdate = true;
+    soldiers.forEach((s, i) => {
+      s.position.add(s.direction);
+      const mesh = group.current.children[i];
+      mesh.position.copy(s.position);
+    });
   });
 
-  // Change color of one cube (example: cube 0 -> red)
-  const changeCubeColor = (index, color) => {
-    if (!meshRef.current) return;
-    const newColor = new THREE.Color(color);
-    colors[index * 3 + 0] = newColor.r;
-    colors[index * 3 + 1] = newColor.g;
-    colors[index * 3 + 2] = newColor.b;
-    meshRef.current.geometry.attributes.color.needsUpdate = true;
-  };
-
-  // Change first cube color after 2 seconds
-  useEffect(() => {
-    setTimeout(() => changeCubeColor(0, "red"), 2000);
-  }, []);
+  // Change one soldier’s color after 2 seconds
+  useFrame(({ clock }) => {
+    if (clock.elapsedTime > 2) {
+      soldiers[0].color.set("red");
+      group.current.children[0].traverse((child) => {
+        if (child.isMesh) {
+          child.material.color = soldiers[0].color;
+        }
+      });
+    }
+  });
 
   return (
-    <instancedMesh ref={meshRef} args={[null, null, count]}>
-      <boxGeometry args={[0.5, 0.5, 0.5]} />
-      <meshStandardMaterial vertexColors />
-    </instancedMesh>
+    <group ref={group}>
+      {soldiers.map((s, i) => (
+        <primitive
+          key={i}
+          object={scene.clone()}
+          position={s.position}
+          scale={0.02}
+        >
+          {/* Apply initial color */}
+          <meshStandardMaterial attach="material" color={s.color} />
+        </primitive>
+      ))}
+    </group>
   );
 }
 
 export default function App() {
   return (
-    <Canvas camera={{ position: [5, 5, 10], fov: 60 }}>
+    <Canvas camera={{ position: [0, 5, 10], fov: 50 }}>
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 10, 5]} intensity={1} />
-      <InstancedCubes count={100} speed={0.05} />
+      <Soldiers url="/models/Soldier.glb" count={5} speed={0.05} />
       <OrbitControls />
     </Canvas>
   );
