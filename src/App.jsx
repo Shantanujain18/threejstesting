@@ -31,7 +31,7 @@ function Soldier({ url, action, visible }) {
     const walkAction = mixer.clipAction(walkAnim);
     const runAction  = mixer.clipAction(runAnim);
 
-    // Play all actions, but only idle visible initially
+    // Play all actions, only idle visible initially
     idleAction.play();
     walkAction.play(); walkAction.setEffectiveWeight(0);
     runAction.play();  runAction.setEffectiveWeight(0);
@@ -39,7 +39,6 @@ function Soldier({ url, action, visible }) {
     setActionsMap({ idle: idleAction, walk: walkAction, run: runAction });
   }, [scene, animations]);
 
-  // Switch animation on action change
   useEffect(() => {
     if (!actionsMap[action]) return;
 
@@ -47,12 +46,12 @@ function Soldier({ url, action, visible }) {
     actionsMap[action].setEffectiveWeight(1);
   }, [action, actionsMap]);
 
-  // Animate mixer and move soldier
   useFrame((state, delta) => {
     if (mixerRef.current) mixerRef.current.update(delta);
     if (group.current) {
-      group.current.position.x -= 0.02;
-      if (group.current.position.x < -10) group.current.position.x = 10;
+      // Keep soldier centered on screen (optional subtle movement)
+      // group.current.position.x = 0;
+      group.current.position.y = 0; // on ground
     }
   });
 
@@ -65,13 +64,30 @@ export default function App() {
 
   return (
     <>
-      <Canvas camera={{ position: [0, 2, 5], fov: 50 }}>
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[10, 10, 10]} intensity={1} />
+      <Canvas shadows camera={{ position: [0, 2, 5], fov: 50 }}>
+        {/* Lights */}
+        <ambientLight intensity={0.5} />
+        <directionalLight 
+          position={[5, 10, 5]} 
+          intensity={1} 
+          castShadow
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
+        />
+
+        {/* Ground */}
+        <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+          <planeGeometry args={[50, 50]} />
+          <meshStandardMaterial color="#777" />
+        </mesh>
+
+        {/* Soldier */}
         <Soldier url="/models/Soldier.glb" action={action} visible={visible} />
+
         <OrbitControls />
       </Canvas>
 
+      {/* Buttons */}
       <div style={{ position: "absolute", top: 20, left: 20, zIndex: 1 }}>
         <button onClick={() => setVisible(!visible)}>
           {visible ? "Hide" : "Show"} Model
